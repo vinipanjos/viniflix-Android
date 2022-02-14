@@ -97,11 +97,14 @@ public class CategoryTask extends AsyncTask<String, Void, List<Category>> {
             JSONArray movieArray = category.getJSONArray("movie");
             for (int j = 0; j < movieArray.length(); j++) {
                 JSONObject movie = movieArray.getJSONObject(j);
+                int id = movie.getInt("id");
 
                 String coverUrl = movie.getString("cover_url");
 
+
                 Movie movieObj = new Movie();
                 movieObj.setCoverUrl(coverUrl);
+                movieObj.setId(id);
                 movies.add(movieObj);
             }
 
@@ -137,4 +140,5 @@ public class CategoryTask extends AsyncTask<String, Void, List<Category>> {
     public interface CategoryLoader {
         void onResult(List<Category> categories);
     }
+
 }

@@ -3,11 +3,15 @@ package co.viniciuspinheiro.viniflix;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
+import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 
+import android.graphics.drawable.Drawable;
+import android.graphics.drawable.LayerDrawable;
 import android.os.Bundle;
+import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
@@ -17,13 +21,18 @@ import java.util.ArrayList;
 import java.util.List;
 
 import co.viniciuspinheiro.viniflix.model.Movie;
+import co.viniciuspinheiro.viniflix.model.MovieDetail;
+import co.viniciuspinheiro.viniflix.util.ImageDownloaderTask;
+import co.viniciuspinheiro.viniflix.util.MovieDetailTask;
 
 
-public class MovieActivity extends AppCompatActivity {
+public class MovieActivity extends AppCompatActivity implements MovieDetailTask.MovieDetailLoader {
     private TextView txtTitle;
     private TextView txtDesc;
     private TextView txtCast;
     private RecyclerView recyclerView;
+    private MovieAdapter movieAdapter;
+    private ImageView imgCover;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -34,6 +43,7 @@ public class MovieActivity extends AppCompatActivity {
         txtDesc = findViewById(R.id.text_view_desc);
         txtCast = findViewById(R.id.text_view_cast);
         recyclerView = findViewById(R.id.recycler_view_similar);
+        imgCover = findViewById(R.id.image_view_cover);
 
         Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
@@ -42,20 +52,38 @@ public class MovieActivity extends AppCompatActivity {
             getSupportActionBar().setDisplayHomeAsUpEnabled(true);
             getSupportActionBar().setHomeAsUpIndicator(R.drawable.ic_baseline_arrow_back_24);
             getSupportActionBar().setTitle(null);
+
+            LayerDrawable drawable = (LayerDrawable) ContextCompat.getDrawable(this, R.drawable.shadows);
+            if (drawable != null) {
+                Drawable movieCover = ContextCompat.getDrawable(this, R.drawable.movie1);
+                drawable.setDrawableByLayerId(R.id.cover_drawable, movieCover);
+                //  ((ImageView)findViewById((R.id.image_view_cover)).setImageDrawable(drawable));
+            }
         }
-
-        txtTitle.setText("Homem Aranha 2");
-        txtDesc.setText("Quando uma falha na experiência de fusão nuclear resulta em uma explosão que mata sua esposa, o Dr. Otto Octavius é transformado em Dr. Octopus, um ciborgue com tentáculos de metal. Doc Ock culpa o Homem-Aranha pelo acidente e quer vingança. Enquanto isso, o alter ego do herói, Peter Parker, perde seus poderes. Para complicar as coisas, o seu melhor amigo odeia o Homem-Aranha e sua amada fica noiva.");
-        txtCast.setText(getString(R.string.cast, "Robert Pattinson, Zoe Kravits, Paul Dano, Collin Farrell"));
-
         List<Movie> movies = new ArrayList<>();
-        for (int i = 0; i < 30; i++) {
-            Movie movie = new Movie();
-            movies.add(movie);
-        }
-
-        recyclerView.setAdapter(new MovieAdapter(movies));
+        movieAdapter = new MovieAdapter(movies);
+        recyclerView.setAdapter(movieAdapter);
         recyclerView.setLayoutManager(new GridLayoutManager(this, 3));
+        Bundle extras = getIntent().getExtras();
+        if (extras != null) {
+            int id = extras.getInt("id");
+            MovieDetailTask movieDetailTask = new MovieDetailTask(this, this);
+            movieDetailTask.execute("https://tiagoaguiar.co/api/netflix/" + id);
+        }
+    }
+
+    @Override
+    public void onResult(MovieDetail movieDetail) {
+        txtTitle.setText(movieDetail.getMovie().getTitle());
+        txtDesc.setText(movieDetail.getMovie().getDesc());
+        txtCast.setText(movieDetail.getMovie().getCast());
+        movieAdapter.setMovies(movieDetail.getMoviesSimilar());
+
+        ImageDownloaderTask imageDownloaderTask = new ImageDownloaderTask(imgCover);
+        imageDownloaderTask.setShadowEnabled(true);
+        imageDownloaderTask.execute(movieDetail.getMovie().getCoverUrl());
+
+        movieAdapter.notifyDataSetChanged();
     }
 
     private static class MovieHolder extends RecyclerView.ViewHolder {
@@ -68,29 +96,42 @@ public class MovieActivity extends AppCompatActivity {
         }
     }
 
-    private class MovieAdapter extends RecyclerView.Adapter<MainActivity.MovieHolder> {
+    private class MovieAdapter extends RecyclerView.Adapter<MovieHolder> {
 
-        private final List<Movie> movies;
+        private List<Movie> movies;
 
         private MovieAdapter(List<Movie> movies) {
             this.movies = movies;
         }
 
+        public void setMovies(List<Movie> movies) {
+            this.movies.clear();
+            this.movies.addAll(movies);
+        }
+
         @NonNull
         @Override
-        public MainActivity.MovieHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-            return new MainActivity.MovieHolder(getLayoutInflater().inflate(R.layout.movie_item_similar, parent, false));
+        public MovieHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+
+            return new MovieHolder(getLayoutInflater().inflate(R.layout.movie_item_similar, parent, false));
         }
 
         @Override
-        public void onBindViewHolder(@NonNull MainActivity.MovieHolder holder, int position) {
+        public void onBindViewHolder(@NonNull MovieHolder holder, int position) {
             Movie movie = movies.get(position);
-            //  holder.imageViewCover.setImageResource(movie.getCoverUrl());
+            new ImageDownloaderTask(holder.imageViewCover).execute(movie.getCoverUrl());
         }
 
         @Override
         public int getItemCount() {
             return movies.size();
         }
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(@NonNull MenuItem item) {
+        if (item.getItemId() == android.R.id.home)
+            finish();
+        return super.onOptionsItemSelected(item);
     }
 }
